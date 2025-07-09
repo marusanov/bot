@@ -2,7 +2,14 @@ import os
 import logging
 import signal
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    MessageHandler,
+    filters
+)
 
 # Настройка логирования
 logging.basicConfig(
@@ -22,8 +29,8 @@ if not TOKEN:
     logger.error("Токен бота не найден! Проверьте BOT_TOKEN в переменных окружения")
     exit(1)
 
-# Глобальная переменная для updater
-updater = None
+# Глобальная переменная для приложения
+application = None
 
 def main_menu_keyboard():
     """Генерация клавиатуры главного меню"""
@@ -32,7 +39,7 @@ def main_menu_keyboard():
         [InlineKeyboardButton("Полный гайд", callback_data='full_guide')]
     ])
 
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
     user = update.effective_user
     text = (
@@ -44,40 +51,39 @@ def start(update: Update, context: CallbackContext):
     )
     
     if update.message:
-        update.message.reply_text(text, reply_markup=main_menu_keyboard())
+        await update.message.reply_text(text, reply_markup=main_menu_keyboard())
     else:
-        update.callback_query.edit_message_text(text, reply_markup=main_menu_keyboard())
+        await update.callback_query.edit_message_text(text, reply_markup=main_menu_keyboard())
 
-def free_guide(update: Update, context: CallbackContext):
+async def free_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Отправка бесплатного гайда"""
     query = update.callback_query
-    query.answer()
+    await query.answer()
     
     try:
-        # Замените на реальную ссылку или файл
-        pdf_url = "https://example.com/free_guide.pdf"
-        query.edit_message_text("📚 Вот твой бесплатный гайд:")
-        context.bot.send_document(
+        pdf_url = "https://example.com/free_guide.pdf"  # Замените на реальную ссылку
+        await query.edit_message_text("📚 Вот твой бесплатный гайд:")
+        await context.bot.send_document(
             chat_id=query.message.chat_id,
             document=pdf_url,
             caption="После изучения можешь перейти к полной версии!"
         )
     except Exception as e:
         logger.error(f"Ошибка отправки гайда: {e}")
-        query.edit_message_text("⚠️ Не удалось загрузить гайд, попробуйте позже")
+        await query.edit_message_text("⚠️ Не удалось загрузить гайд, попробуйте позже")
 
     # Кнопка возврата
-    query.message.reply_text(
+    await query.message.reply_text(
         "Что дальше?",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("На главную", callback_data='main_menu')]
         ])
     )
 
-def full_guide(update: Update, context: CallbackContext):
+async def full_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Меню полного гайда"""
     query = update.callback_query
-    query.answer()
+    await query.answer()
     
     keyboard = [
         [InlineKeyboardButton("Купить ($19.99)", url="https://example.com/payment")],
@@ -85,7 +91,7 @@ def full_guide(update: Update, context: CallbackContext):
         [InlineKeyboardButton("На главную", callback_data='main_menu')]
     ]
     
-    query.edit_message_text(
+    await query.edit_message_text(
         "💰 Полный гайд включает:\n\n"
         "• 50+ страниц профессиональных советов\n"
         "• Доступ к закрытому чату\n"
@@ -94,12 +100,12 @@ def full_guide(update: Update, context: CallbackContext):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-def preview(update: Update, context: CallbackContext):
+async def preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Превью содержания"""
     query = update.callback_query
-    query.answer()
+    await query.answer()
     
-    query.edit_message_text(
+    await query.edit_message_text(
         "📖 Содержание полного гайда:\n\n"
         "1. Основы (10 страниц)\n"
         "2. Продвинутые техники (15 стр.)\n"
@@ -111,52 +117,45 @@ def preview(update: Update, context: CallbackContext):
         ])
     )
 
-def error_handler(update: Update, context: CallbackContext):
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик ошибок с уведомлением админа"""
     error_msg = f"⚠️ Ошибка: {context.error}\n\nUpdate: {update}"
     logger.error(error_msg)
     
     if ADMIN_CHAT_ID:
         try:
-            context.bot.send_message(ADMIN_CHAT_ID, error_msg)
+            await context.bot.send_message(ADMIN_CHAT_ID, error_msg)
         except Exception as e:
             logger.error(f"Не удалось отправить уведомление: {e}")
 
 def shutdown(signum, frame):
     """Корректное завершение работы"""
     logger.info("Получен сигнал завершения...")
-    if updater:
-        updater.stop()
-        updater.is_idle = False
     exit(0)
 
-def setup_handlers(dp):
-    """Настройка обработчиков команд"""
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(start, pattern='main_menu'))
-    dp.add_handler(CallbackQueryHandler(free_guide, pattern='free_guide'))
-    dp.add_handler(CallbackQueryHandler(full_guide, pattern='full_guide'))
-    dp.add_handler(CallbackQueryHandler(preview, pattern='preview'))
-    dp.add_error_handler(error_handler)
-
-def main():
-    global updater
+def setup_application():
+    """Настройка приложения и обработчиков"""
+    app = Application.builder().token(TOKEN).build()
     
-    # Инициализация без use_context
-    updater = Updater(TOKEN)
-    dp = updater.dispatcher
+    # Регистрация обработчиков
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(start, pattern='main_menu'))
+    app.add_handler(CallbackQueryHandler(free_guide, pattern='free_guide'))
+    app.add_handler(CallbackQueryHandler(full_guide, pattern='full_guide'))
+    app.add_handler(CallbackQueryHandler(preview, pattern='preview'))
     
-    setup_handlers(dp)
-    signal.signal(signal.SIGTERM, shutdown)
+    # Обработчик ошибок
+    app.add_error_handler(error_handler)
     
-    return updater
+    return app
 
 if __name__ == '__main__':
-    main_bot = main()
+    application = setup_application()
+    signal.signal(signal.SIGTERM, shutdown)
     
     if os.getenv("RENDER"):
         logger.info("Запуск в режиме вебхука для Render")
-        main_bot.start_webhook(
+        application.run_webhook(
             listen="0.0.0.0",
             port=PORT,
             url_path=TOKEN,
@@ -165,5 +164,4 @@ if __name__ == '__main__':
         )
     else:
         logger.info("Запуск в локальном режиме (polling)")
-        main_bot.start_polling()
-        main_bot.idle()
+        application.run_polling()
