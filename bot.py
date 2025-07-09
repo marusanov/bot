@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Конфигурация
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
-WEBHOOK_URL = "https://ваш-сервис.onrender.com"  # Замените на ваш URL
+WEBHOOK_URL = "https://bot-utk2.onrender.com"  # Замените на ваш URL
 PORT = int(os.getenv("PORT", 10000))
 
 # Проверка обязательных переменных
