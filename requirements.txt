@@ -11,4 +11,4 @@ stripe==7.0.0
 
 # Дополнительно
 apscheduler==3.10.1
-httpx==0.25.0
+httpx==0.24.0
