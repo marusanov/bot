@@ -23,6 +23,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
 WEBHOOK_URL = "https://bot-utk2.onrender.com"  # Замените на ваш URL
 PORT = int(os.getenv("PORT", 10000))
+WELCOME_IMAGE_URL = "https://example.com/welcome.jpg"  # Замените на URL вашего изображения
 
 # Проверка обязательных переменных
 if not TOKEN:
@@ -32,6 +33,26 @@ if not TOKEN:
 # Глобальная переменная для приложения
 application = None
 
+async def send_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отправка приветственного сообщения с изображением"""
+    user = update.effective_user
+    try:
+        await update.message.reply_photo(
+            photo=WELCOME_IMAGE_URL,
+            caption=f"Привет, {user.first_name}! 👋\n\nДобро пожаловать в мой бот!",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("Начать работу", callback_data='start_menu')]
+            ])
+        )
+    except Exception as e:
+        logger.error(f"Ошибка отправки приветственного изображения: {e}")
+        await update.message.reply_text(
+            f"Привет, {user.first_name}! 👋\n\nДобро пожаловать! Нажмите кнопку ниже чтобы начать.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("Начать работу", callback_data='start_menu')]
+            ])
+        )
+
 def main_menu_keyboard():
     """Генерация клавиатуры главного меню"""
     return InlineKeyboardMarkup([
@@ -40,11 +61,10 @@ def main_menu_keyboard():
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /start"""
+    """Обработчик команды /start и кнопки старта"""
     user = update.effective_user
     text = (
-        f"Привет, {user.first_name}! 👋\n\n"
-        "Я бот [Имя блогера]. Здесь ты можешь получить полезные гайды:\n\n"
+        f"{user.first_name}, я бот [Имя блогера]. Здесь ты можешь получить полезные гайды:\n\n"
         "• 🆓 Бесплатный гайд - основы для начинающих\n"
         "• 💰 Полный гайд - расширенная версия с секретными фишками\n\n"
         "Выбери вариант ниже:"
@@ -76,7 +96,7 @@ async def free_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.message.reply_text(
         "Что дальше?",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("На главную", callback_data='main_menu')]
+            [InlineKeyboardButton("На главную", callback_data='start_menu')]
         ])
     )
 
@@ -88,7 +108,7 @@ async def full_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("Купить ($19.99)", url="https://example.com/payment")],
         [InlineKeyboardButton("Содержание", callback_data='preview')],
-        [InlineKeyboardButton("На главную", callback_data='main_menu')]
+        [InlineKeyboardButton("На главную", callback_data='start_menu')]
     ]
     
     await query.edit_message_text(
@@ -113,7 +133,7 @@ async def preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Хочешь получить полный доступ?",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("Купить сейчас", url="https://example.com/payment")],
-            [InlineKeyboardButton("На главную", callback_data='main_menu')]
+            [InlineKeyboardButton("На главную", callback_data='start_menu')]
         ])
     )
 
@@ -138,8 +158,9 @@ def setup_application():
     app = Application.builder().token(TOKEN).job_queue(None).build()
     
     # Регистрация обработчиков
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, send_welcome))  # Обработчик приветствия
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(start, pattern='main_menu'))
+    app.add_handler(CallbackQueryHandler(start, pattern='start_menu'))
     app.add_handler(CallbackQueryHandler(free_guide, pattern='free_guide'))
     app.add_handler(CallbackQueryHandler(full_guide, pattern='full_guide'))
     app.add_handler(CallbackQueryHandler(preview, pattern='preview'))
