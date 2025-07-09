@@ -1,3 +1,4 @@
+import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, Filters
@@ -7,10 +8,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Токен вашего бота (замените на ваш)
-TOKEN = "ВАШ_TELEGRAM_BOT_TOKEN"
+TOKEN = os.getenv("BOT_TOKEN")  # Теперь берется из переменных окружения
 
 # ID чата для уведомлений о покупках (необязательно)
-ADMIN_CHAT_ID = "ВАШ_CHAT_ID"
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
 
 # Функция для главного меню
 def main_menu_keyboard():
@@ -113,21 +114,25 @@ def main():
     # Обработчик ошибок
     dp.add_error_handler(error)
 
-    # Запуск бота
-    updater.start_polling()
-    updater.idle()
+    return updater  # Возвращаем updater для использования с вебхуком
 
 if __name__ == '__main__':
-    main()
-
-# В конце файла добавьте:
-WEBHOOK_URL = "https://bot-production-d148.up.railway.app"  # Ваш домен
-PORT = int(os.getenv("PORT", 8443))  # Railway сам подставит реальный порт
-
-updater.start_webhook(
-    listen="0.0.0.0",
-    port=PORT,
-    url_path=TOKEN,
-    webhook_url=f"{WEBHOOK_URL}/{TOKEN}",
-    drop_pending_updates=True
-)
+    updater = main()
+    
+    # Режим работы (вебхук или polling)
+    if os.getenv("RAILWAY_ENVIRONMENT"):
+        # Настройки для Railway
+        WEBHOOK_URL = "https://bot-production-d148.up.railway.app"  # Ваш домен
+        PORT = int(os.getenv("PORT", 8443))
+        
+        updater.start_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=TOKEN,
+            webhook_url=f"{WEBHOOK_URL}/{TOKEN}",
+            drop_pending_updates=True
+        )
+    else:
+        # Локальный режим (polling)
+        updater.start_polling()
+        updater.idle()
