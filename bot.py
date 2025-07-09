@@ -140,10 +140,10 @@ def setup_handlers(dp):
     dp.add_error_handler(error_handler)
 
 def main():
-    """Основная функция инициализации"""
     global updater
     
-    updater = Updater(TOKEN, use_context=True)
+    # Инициализация без use_context
+    updater = Updater(TOKEN)
     dp = updater.dispatcher
     
     setup_handlers(dp)
