@@ -1,30 +1,41 @@
 import os
 import logging
+import signal
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
 
 # Настройка логирования
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Токен вашего бота (замените на ваш)
-TOKEN = os.getenv("BOT_TOKEN")  # Теперь берется из переменных окружения
-
-# ID чата для уведомлений о покупках (необязательно)
+# Конфигурация
+TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
+WEBHOOK_URL = "https://ваш-сервис.onrender.com"  # Замените на ваш URL
+PORT = int(os.getenv("PORT", 10000))
 
-# Функция для главного меню
+# Проверка обязательных переменных
+if not TOKEN:
+    logger.error("Токен бота не найден! Проверьте BOT_TOKEN в переменных окружения")
+    exit(1)
+
+# Глобальная переменная для updater
+updater = None
+
 def main_menu_keyboard():
-    keyboard = [
+    """Генерация клавиатуры главного меню"""
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("Бесплатный гайд", callback_data='free_guide')],
-        [InlineKeyboardButton("Полный гайд", callback_data='full_guide')],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+        [InlineKeyboardButton("Полный гайд", callback_data='full_guide')]
+    ])
 
-# Обработчик команды /start
 def start(update: Update, context: CallbackContext):
+    """Обработчик команды /start"""
     user = update.effective_user
-    welcome_text = (
+    text = (
         f"Привет, {user.first_name}! 👋\n\n"
         "Я бот [Имя блогера]. Здесь ты можешь получить полезные гайды:\n\n"
         "• 🆓 Бесплатный гайд - основы для начинающих\n"
@@ -33,99 +44,119 @@ def start(update: Update, context: CallbackContext):
     )
     
     if update.message:
-        update.message.reply_text(welcome_text, reply_markup=main_menu_keyboard())
+        update.message.reply_text(text, reply_markup=main_menu_keyboard())
     else:
-        update.callback_query.edit_message_text(welcome_text, reply_markup=main_menu_keyboard())
+        update.callback_query.edit_message_text(text, reply_markup=main_menu_keyboard())
 
-# Обработчик кнопки "Бесплатный гайд"
 def free_guide(update: Update, context: CallbackContext):
+    """Отправка бесплатного гайда"""
     query = update.callback_query
     query.answer()
     
-    # Здесь должен быть ваш PDF файл (можно заменить на ссылку)
-    pdf_url = "https://example.com/free_guide.pdf"  # Замените на реальную ссылку
-    
-    text = "📚 Вот твой бесплатный гайд:\n\nПосле изучения можешь перейти к полной версии!"
-    query.edit_message_text(text)
-    
-    # Отправляем PDF (если файл локальный, используйте context.bot.send_document)
-    context.bot.send_document(chat_id=query.message.chat_id, document=pdf_url)
-    
-    # Возвращаем кнопку "На главную"
-    back_button = InlineKeyboardButton("На главную", callback_data='main_menu')
-    query.message.reply_text("Что дальше?", reply_markup=InlineKeyboardMarkup([[back_button]]))
+    try:
+        # Замените на реальную ссылку или файл
+        pdf_url = "https://example.com/free_guide.pdf"
+        query.edit_message_text("📚 Вот твой бесплатный гайд:")
+        context.bot.send_document(
+            chat_id=query.message.chat_id,
+            document=pdf_url,
+            caption="После изучения можешь перейти к полной версии!"
+        )
+    except Exception as e:
+        logger.error(f"Ошибка отправки гайда: {e}")
+        query.edit_message_text("⚠️ Не удалось загрузить гайд, попробуйте позже")
 
-# Обработчик кнопки "Полный гайд"
+    # Кнопка возврата
+    query.message.reply_text(
+        "Что дальше?",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("На главную", callback_data='main_menu')]
+        ])
+    )
+
 def full_guide(update: Update, context: CallbackContext):
+    """Меню полного гайда"""
     query = update.callback_query
     query.answer()
     
     keyboard = [
-        [InlineKeyboardButton("Купить полный гайд ($19.99)", url="https://example.com/payment")],  # Замените на реальную ссылку оплаты
-        [InlineKeyboardButton("Посмотреть содержание", callback_data='preview')],
-        [InlineKeyboardButton("На главную", callback_data='main_menu')],
+        [InlineKeyboardButton("Купить ($19.99)", url="https://example.com/payment")],
+        [InlineKeyboardButton("Содержание", callback_data='preview')],
+        [InlineKeyboardButton("На главную", callback_data='main_menu')]
     ]
     
-    text = (
+    query.edit_message_text(
         "💰 Полный гайд включает:\n\n"
         "• 50+ страниц профессиональных советов\n"
         "• Доступ к закрытому чату\n"
         "• Личную консультацию\n\n"
-        "Выбери действие:"
+        "Выбери действие:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    
-    query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# Превью содержания полного гайда
 def preview(update: Update, context: CallbackContext):
+    """Превью содержания"""
     query = update.callback_query
     query.answer()
     
-    preview_text = (
+    query.edit_message_text(
         "📖 Содержание полного гайда:\n\n"
-        "1. Глава 1: Основы (10 страниц)\n"
-        "2. Глава 2: Продвинутые техники (15 страниц)\n"
-        "3. Глава 3: Секретные методы (25 страниц)\n\n"
-        "Хочешь получить полный доступ?"
+        "1. Основы (10 страниц)\n"
+        "2. Продвинутые техники (15 стр.)\n"
+        "3. Секретные методы (25 стр.)\n\n"
+        "Хочешь получить полный доступ?",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("Купить сейчас", url="https://example.com/payment")],
+            [InlineKeyboardButton("На главную", callback_data='main_menu')]
+        ])
     )
+
+def error_handler(update: Update, context: CallbackContext):
+    """Обработчик ошибок с уведомлением админа"""
+    error_msg = f"⚠️ Ошибка: {context.error}\n\nUpdate: {update}"
+    logger.error(error_msg)
     
-    keyboard = [
-        [InlineKeyboardButton("Купить сейчас", url="https://example.com/payment")],
-        [InlineKeyboardButton("На главную", callback_data='main_menu')],
-    ]
-    
-    query.edit_message_text(preview_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    if ADMIN_CHAT_ID:
+        try:
+            context.bot.send_message(ADMIN_CHAT_ID, error_msg)
+        except Exception as e:
+            logger.error(f"Не удалось отправить уведомление: {e}")
 
-# Обработчик ошибок
-def error(update: Update, context: CallbackContext):
-    logger.warning(f'Update "{update}" caused error "{context.error}"')
+def shutdown(signum, frame):
+    """Корректное завершение работы"""
+    logger.info("Получен сигнал завершения...")
+    if updater:
+        updater.stop()
+        updater.is_idle = False
+    exit(0)
 
-def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
-
-    # Обработчики команд
+def setup_handlers(dp):
+    """Настройка обработчиков команд"""
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CallbackQueryHandler(start, pattern='main_menu'))
     dp.add_handler(CallbackQueryHandler(free_guide, pattern='free_guide'))
     dp.add_handler(CallbackQueryHandler(full_guide, pattern='full_guide'))
     dp.add_handler(CallbackQueryHandler(preview, pattern='preview'))
+    dp.add_error_handler(error_handler)
 
-    # Обработчик ошибок
-    dp.add_error_handler(error)
-
-    return updater  # Возвращаем updater для использования с вебхуком
+def main():
+    """Основная функция инициализации"""
+    global updater
+    
+    updater = Updater(TOKEN, use_context=True)
+    dp = updater.dispatcher
+    
+    setup_handlers(dp)
+    signal.signal(signal.SIGTERM, shutdown)
+    
+    return updater
 
 if __name__ == '__main__':
-    updater = main()
+    main_bot = main()
     
-    # Режим работы (вебхук или polling)
-    if os.getenv("RAILWAY_ENVIRONMENT"):
-        # Настройки для Railway
-        WEBHOOK_URL = "https://bot-production-d148.up.railway.app"  # Ваш домен
-        PORT = int(os.getenv("PORT", 8443))
-        
-        updater.start_webhook(
+    if os.getenv("RENDER"):
+        logger.info("Запуск в режиме вебхука для Render")
+        main_bot.start_webhook(
             listen="0.0.0.0",
             port=PORT,
             url_path=TOKEN,
@@ -133,6 +164,6 @@ if __name__ == '__main__':
             drop_pending_updates=True
         )
     else:
-        # Локальный режим (polling)
-        updater.start_polling()
-        updater.idle()
+        logger.info("Запуск в локальном режиме (polling)")
+        main_bot.start_polling()
+        main_bot.idle()
