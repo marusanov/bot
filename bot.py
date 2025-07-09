@@ -119,3 +119,15 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# В конце файла добавьте:
+WEBHOOK_URL = "https://bot-production-d148.up.railway.app"  # Ваш домен
+PORT = int(os.getenv("PORT", 8443))  # Railway сам подставит реальный порт
+
+updater.start_webhook(
+    listen="0.0.0.0",
+    port=PORT,
+    url_path=TOKEN,
+    webhook_url=f"{WEBHOOK_URL}/{TOKEN}",
+    drop_pending_updates=True
+)
