@@ -1,14 +1,3 @@
 # Основные библиотеки
 python-telegram-bot==20.3
 python-dotenv==1.0.0
-
-# База данных
-psycopg2-binary==2.9.9
-sqlalchemy==2.0.23
-
-# Платежи
-stripe==7.0.0
-
-# Дополнительно
-apscheduler==3.10.1
-httpx==0.24.0

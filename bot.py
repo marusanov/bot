@@ -135,7 +135,7 @@ def shutdown(signum, frame):
 
 def setup_application():
     """Настройка приложения и обработчиков"""
-    app = Application.builder().token(TOKEN).build()
+    app = Application.builder().token(TOKEN).job_queue(None).build()
     
     # Регистрация обработчиков
     app.add_handler(CommandHandler("start", start))
